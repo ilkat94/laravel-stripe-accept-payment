@@ -10,11 +10,12 @@ use Tymon\JWTAuth\Exceptions\JWTException;
 
 class AuthController extends Controller
 {
-    public function register() {
+    public function register()
+    {
         $validator = Validator::make(request()->all(), [
-            'name' => 'required',
+            'fullName' => 'required|min:1|max:18',
             'email' => 'required|email|unique:users',
-            'password' => 'required|confirmed|min:8',
+            'password' => 'required|confirmed|min:8|max:120',
         ]);
 
         if($validator->fails()){
@@ -22,7 +23,7 @@ class AuthController extends Controller
         }
 
         $user = new User;
-        $user->name = request()->name;
+        $user->name = request()->fullName;
         $user->email = request()->email;
         $user->password = bcrypt(request()->password);
         $user->save();
@@ -35,10 +36,12 @@ class AuthController extends Controller
         $credentials = $request->only(['email', 'password']);
 
         if (!$token = Auth::guard('api')->attempt($credentials)) {
-            return response()->json(['error' => 'Unauthorized'], 401);
+            return response()->json(['message' => 'Email or password is not correct.'], 401);
         }
 
-        return $this->respondWithToken($token);
+        $user  = Auth::guard('api')->user();
+
+        return $this->respondWithToken($token, $user);
     }
 
     /**
@@ -60,12 +63,13 @@ class AuthController extends Controller
      */
     public function refresh()
     {
-        return $this->respondWithToken(Auth::guard('api')->refresh());
+        return $this->respondWithToken(Auth::guard('api')->refresh(), Auth::guard('api')->user());
     }
 
-    protected function respondWithToken($token)
+    protected function respondWithToken($token, $user)
     {
         return response()->json([
+            'name' => $user->name,
             'access_token' => $token,
             'token_type' => 'bearer',
             'expires_in' => Auth::guard('api')->factory()->getTTL() * 60
